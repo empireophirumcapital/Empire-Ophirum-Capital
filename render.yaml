@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: eoc-wallet-backend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: ./data/eoc.sqlite
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 12h
+      - key: DAILY_LIMIT
+        value: "10000"
+      - key: REVIEW_THRESHOLD
+        value: "5000"
+      - key: ADDR_DELAY_MS
+        value: "86400000"
+      - key: MIN_DEPOSIT_VALUE
+        value: "10"
+      - key: CUSTODY_PROVIDER
+        value: mock
+      - key: CUSTODY_WEBHOOK_SECRET
+        generateValue: true

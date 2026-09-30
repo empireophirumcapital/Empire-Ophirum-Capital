@@ -10,12 +10,14 @@ const NETS = {
   SOL:   { conf: 32, rx: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/ },
 };
 
+// IMPORTANT : ces valeurs doivent rester identiques a ASSET_NETS cote
+// frontend (fee inclus) pour que les 2 cotes calculent le meme montant net.
 const ASSET_NETS = {
-  USDT: { nets: ['TRC20', 'BEP20', 'ERC20'], min: 20 },
-  BTC:  { nets: ['BTC'], min: 0.0005 },
-  ETH:  { nets: ['ERC20'], min: 0.01 },
-  SOL:  { nets: ['SOL'], min: 0.1 },
-  BNB:  { nets: ['BEP20'], min: 0.01 },
+  USDT: { nets: ['TRC20', 'BEP20', 'ERC20'], min: 20,     fee: { TRC20: 1,      BEP20: 0.8,   ERC20: 5 } },
+  BTC:  { nets: ['BTC'],                     min: 0.0005, fee: { BTC: 0.0002 } },
+  ETH:  { nets: ['ERC20'],                   min: 0.01,   fee: { ERC20: 0.002 } },
+  SOL:  { nets: ['SOL'],                     min: 0.1,    fee: { SOL: 0.01 } },
+  BNB:  { nets: ['BEP20'],                   min: 0.01,   fee: { BEP20: 0.0005 } },
 };
 
 const RULES = {

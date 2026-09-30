@@ -59,14 +59,15 @@ function handleDepositConfirmed({ userId /* eocId */, asset, network, amount, tx
   const existing = db.prepare('SELECT id FROM deposits WHERE txid=?').get(txid);
   if (existing) return; // idempotence : deja traite
 
-  const depositId = 'DEP-' + uuidv4().slice(0, 8).toUpperCase();
-  db.prepare(
-    `INSERT INTO deposits (id,user_id,asset,network,amount,txid,confirmations,required_conf,status)
-     SELECT ?, u.id, ?, ?, ?, ?, ?, ?, 'CONFIRMED' FROM users u WHERE u.eoc_id=?`
-  ).run(depositId, asset, network, amount, txid, confirmations || 0, confirmations || 0, userId);
+  const user = db.prepare('SELECT id FROM users WHERE eoc_id=?').get(userId);
+  if (!user) return console.warn('deposit.confirmed pour un utilisateur inconnu:', userId);
 
-  // credit : EOC_EXTERNAL -> USER
-  ledgerPost(
+  const addrRow = db
+    .prepare('SELECT address FROM deposit_addresses WHERE user_id=? AND asset=? AND network=?')
+    .get(user.id, asset, network);
+
+  const depositId = 'DEP-' + uuidv4().slice(0, 8).toUpperCase();
+  const ledgerTx = ledgerPost(
     db,
     `Depot confirme ${depositId}`,
     [
@@ -74,6 +75,15 @@ function handleDepositConfirmed({ userId /* eocId */, asset, network, amount, tx
       { account: userAcct(userId), asset, delta: amount },
     ],
     { ref: depositId }
+  );
+
+  db.prepare(
+    `INSERT INTO deposits
+       (id,user_id,asset,network,address,amount,txid,confirmations,required_conf,status,ledger_tx,confirmed_at)
+     VALUES (?,?,?,?,?,?,?,?,?,'CONFIRMED',?,datetime('now'))`
+  ).run(
+    depositId, user.id, asset, network, addrRow ? addrRow.address : null, amount,
+    txid, confirmations || 0, confirmations || 0, ledgerTx
   );
 }
 
@@ -89,7 +99,7 @@ function handleWithdrawalStatus({ withdrawalId, status, txid, confirmations }) {
   // confirme sur la chaine -> on solde le compte PENDING_WD.
   if (status === 'COMPLETED' && wd.status !== 'COMPLETED') {
     const eocId = db.prepare('SELECT eoc_id FROM users WHERE id=?').get(wd.user_id).eoc_id;
-    ledgerPost(
+    const completeTx = ledgerPost(
       db,
       `Retrait ${withdrawalId} - confirme on-chain`,
       [
@@ -98,12 +108,15 @@ function handleWithdrawalStatus({ withdrawalId, status, txid, confirmations }) {
       ],
       { ref: withdrawalId }
     );
+    db.prepare(
+      "UPDATE withdrawals SET complete_tx=?, completed_at=datetime('now') WHERE id=?"
+    ).run(completeTx, withdrawalId);
   }
 
   // Si le prestataire rejette/echoue la transaction, on rend les fonds.
   if (['REJECTED', 'FAILED'].includes(status) && !['REJECTED', 'FAILED'].includes(wd.status)) {
     const eocId = db.prepare('SELECT eoc_id FROM users WHERE id=?').get(wd.user_id).eoc_id;
-    ledgerPost(
+    const revertTx = ledgerPost(
       db,
       `Retrait ${withdrawalId} - echec, remboursement`,
       [
@@ -112,6 +125,7 @@ function handleWithdrawalStatus({ withdrawalId, status, txid, confirmations }) {
       ],
       { ref: withdrawalId }
     );
+    db.prepare('UPDATE withdrawals SET revert_tx=? WHERE id=?').run(revertTx, withdrawalId);
   }
 }
 

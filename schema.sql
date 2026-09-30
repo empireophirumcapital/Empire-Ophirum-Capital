@@ -50,12 +50,16 @@ CREATE TABLE IF NOT EXISTS deposits (
   user_id        INTEGER NOT NULL REFERENCES users(id),
   asset          TEXT NOT NULL,
   network        TEXT NOT NULL,
+  address        TEXT,                 -- adresse EOC creditee
   amount         REAL NOT NULL,
   txid           TEXT,
   confirmations  INTEGER DEFAULT 0,
   required_conf  INTEGER DEFAULT 0,
-  status         TEXT NOT NULL,        -- PENDING | CONFIRMED | BELOW_MIN
-  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  status         TEXT NOT NULL,        -- PENDING | CONFIRMED | BELOW_MIN | REJECTED
+  reason         TEXT,
+  ledger_tx      TEXT,                 -- tx_ref du ledgerPost de credit
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  confirmed_at   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS withdrawals (
@@ -65,12 +69,20 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   network       TEXT NOT NULL,
   address       TEXT NOT NULL,
   amount        REAL NOT NULL,
+  fee           REAL NOT NULL DEFAULT 0,
+  net           REAL NOT NULL DEFAULT 0,   -- amount - fee (ce que l'utilisateur recoit)
+  value         REAL NOT NULL DEFAULT 0,   -- valeur fiat estimee (voir README: placeholder sans oracle de prix)
+  flags         TEXT NOT NULL DEFAULT '[]', -- JSON array des alertes risk-check
   status        TEXT NOT NULL,         -- PENDING | REVIEW | PROCESSING | BROADCAST | COMPLETED | CANCELLED | REJECTED
   txid          TEXT,
   confirmations INTEGER DEFAULT 0,
   required_conf INTEGER DEFAULT 0,
   provider_ref  TEXT,
+  lock_tx       TEXT,                  -- tx_ref du verrouillage des fonds
+  complete_tx   TEXT,                  -- tx_ref de la sortie definitive des fonds
+  revert_tx     TEXT,                  -- tx_ref du deverrouillage (annulation/rejet)
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at  TEXT,
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -80,8 +92,8 @@ CREATE TABLE IF NOT EXISTS whitelist (
   label      TEXT,
   network    TEXT NOT NULL,
   address    TEXT NOT NULL,
-  active_at  TEXT NOT NULL,             -- delai de securite avant activation (ADDR_DELAY_MS)
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  added_at   INTEGER NOT NULL,          -- epoch ms, meme format que le frontend
+  active_at  INTEGER NOT NULL           -- epoch ms ; delai de securite avant activation (ADDR_DELAY_MS)
 );
 
 CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id);
